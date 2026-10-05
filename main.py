@@ -435,7 +435,7 @@ def generate_product_report(products, orders):
     return path
 
 def generate_order_report(products, orders):
-    # One main table only. Data in each row is joined from products.dat + orders.dat.
+    # One order per row. Multiple products in the same order are combined in one row.
     products_map = {p["id"]: p for p in products.all_active()}
     rows = orders.all_active()
 
@@ -448,32 +448,43 @@ def generate_order_report(products, orders):
         "ตารางนี้รวมข้อมูลจาก orders.dat และ products.dat ในตารางเดียว โดยเชื่อมด้วย Product ID",
         "",
         border(130),
-        "| Order ID | Customer | Product ID | Product Name       | Qty | Unit Price | Line Total | Order Total | Date                |",
+        "| Order ID | Customer | Products                    | Qty       | Order Total | Date                |",
         border(130)
     ]
 
     total_sales = 0
     total_items = 0
+
     for r in rows:
+        product_names = []
+        quantities = []
+
         for pid, qty in r["items"]:
             product = products_map.get(pid)
+
             if product is None:
                 product_name = "Unknown"
-                unit_price = 0.0
             else:
                 product_name = product["name"]
-                unit_price = product["price"]
-            line_total = unit_price * qty
-            total_sales += line_total
+
+            product_names.append(product_name)
+            quantities.append(str(qty))
             total_items += qty
-            lines.append(
-                f"| {r['id']:<8} | {r['customer_id']:<8} | {pid:<10} | "
-                f"{product_name:<18} | {qty:>3} | {unit_price:>10.2f} | "
-                f"{line_total:>10.2f} | {r['total']:>11.2f} | {r['date']:<19} |"
-            )
+
+        products_text = ", ".join(product_names)
+        quantities_text = ", ".join(quantities)
+        total_sales += r["total"]
+
+        lines.append(
+            f"| {r['id']:<8} | {r['customer_id']:<8} | "
+            f"{products_text:<27} | {quantities_text:<9} | "
+            f"{r['total']:>11.2f} | {r['date']:<19} |"
+        )
 
     if not rows:
-        lines.append("| No active orders.                                                                                                             |")
+        lines.append(
+            "| No active orders.                                                                                                             |"
+        )
 
     lines += [
         border(130),
@@ -487,6 +498,7 @@ def generate_order_report(products, orders):
         "End of Order Report",
         "=" * 110
     ]
+
     path = REPORT_DIR / "order_report.txt"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
