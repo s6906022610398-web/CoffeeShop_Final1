@@ -25,6 +25,5 @@ Active Orders : 3
 Customers     : 3
 Total Items   : 9
 Total Sales   : 480.00 THB
-
 End of Order Report
 ==============================================================================================================

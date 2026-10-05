@@ -377,29 +377,16 @@ def report_header(title, files):
 
 
 def generate_product_report(products, orders):
-    # JOIN products.dat + orders.dat in ONE table.
-    # Each row represents one product appearing in one active order.
-    product_map = {p["id"]: p for p in products.all_active()}
+    # Product report: show every product exactly once.
+    # products.dat is the main source; orders.dat supplies total sold quantity.
+    product_rows = products.all_active()
     order_rows = orders.all_active()
 
-    joined_rows = []
+    sold_qty = {p["id"]: 0 for p in product_rows}
     for order in order_rows:
         for pid, qty in order["items"]:
-            product = product_map.get(pid)
-            if product is None:
-                continue
-            joined_rows.append({
-                "product_id": pid,
-                "product_name": product["name"],
-                "category": product["category"],
-                "price": product["price"],
-                "order_id": order["id"],
-                "customer_id": order["customer_id"],
-                "qty": qty,
-                "sales": product["price"] * qty,
-                "order_total": order["total"],
-                "date": order["date"]
-            })
+            if pid in sold_qty:
+                sold_qty[pid] += qty
 
     lines = report_header(
         "COFFEE SHOP MANAGEMENT SYSTEM - PRODUCT REPORT",
@@ -407,53 +394,45 @@ def generate_product_report(products, orders):
     )
     lines += [
         "REPORT DETAILS",
-        "รายงานนี้ JOIN ข้อมูลจาก products.dat และ orders.dat ในตารางเดียว",
-        "ข้อมูลสินค้า (ชื่อ/ประเภท/ราคา) มาจาก products.dat",
-        "ข้อมูลคำสั่งซื้อ (Order/Customer/Quantity/Date) มาจาก orders.dat",
+        "แสดงสินค้าทั้งหมดจาก products.dat และจำนวนที่ขายได้ของสินค้าแต่ละรายการ",
+        "โดยนำจำนวนสินค้าใน orders.dat มารวมตาม Product ID",
         "",
-        border(145),
-        "| Product ID | Product Name          | Category       | Price | Order ID | Customer | Qty | Sales | Order Total | Date                |",
-        border(145)
+        border(105),
+        "| Product ID | Product Name          | Category       | Price (THB) | Sold Qty | Sales (THB) |",
+        border(105)
     ]
 
     total_qty = 0
     total_sales = 0.0
-
-    for r in joined_rows:
-        total_qty += r["qty"]
-        total_sales += r["sales"]
+    for product in product_rows:
+        qty = sold_qty[product["id"]]
+        sales = product["price"] * qty
+        total_qty += qty
+        total_sales += sales
         lines.append(
-            f"| {r['product_id']:<10} | {r['product_name']:<21} | "
-            f"{r['category']:<14} | {r['price']:>5.2f} | "
-            f"{r['order_id']:<8} | {r['customer_id']:<8} | "
-            f"{r['qty']:>3} | {r['sales']:>7.2f} | "
-            f"{r['order_total']:>11.2f} | {r['date']:<19} |"
+            f"| {product['id']:<10} | {product['name']:<21} | "
+            f"{product['category']:<14} | {product['price']:>11.2f} | "
+            f"{qty:>8} | {sales:>11.2f} |"
         )
 
-    if not joined_rows:
-        lines.append(
-            "| No joined product/order records. "
-            "Add products and orders, then generate the report again.                                     |"
-        )
+    if not product_rows:
+        lines.append("| No active products.                                                                          |")
 
     lines += [
-        border(145),
+        border(105),
         "",
         "REPORT SUMMARY",
-        border(80),
-        f"Joined Rows      : {len(joined_rows)}",
-        f"Products Used    : {len(product_map)}",
-        f"Orders Used      : {len(order_rows)}",
-        f"Total Sold Qty   : {total_qty}",
-        f"Total Product Sales: {total_sales:.2f} THB",
+        border(75),
+        f"Total Products : {len(product_rows)}",
+        f"Total Sold Qty : {total_qty}",
+        f"Total Sales    : {total_sales:.2f} THB",
         "",
         "End of Product Report",
-        "=" * 110
+        "=" * 105
     ]
     path = REPORT_DIR / "product_report.txt"
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
-
 
 def generate_order_report(products, orders):
     # One main table only. Data in each row is joined from products.dat + orders.dat.
