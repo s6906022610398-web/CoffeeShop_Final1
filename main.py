@@ -434,60 +434,60 @@ def generate_product_report(products, orders):
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
 
-def generate_order_report(products, orders):
-    # One order per row. Multiple products in the same order are combined in one row.
+def generate_order_report(products, orders, payments):
     products_map = {p["id"]: p for p in products.all_active()}
+    payment_map = {p["order_id"]: p for p in payments.all_active()} if payments else {}
     rows = orders.all_active()
 
     lines = report_header(
         "COFFEE SHOP MANAGEMENT SYSTEM - ORDER REPORT",
-        "products.dat + orders.dat"
+        "orders.dat + products.dat + payments.dat"
     )
     lines += [
         "REPORT DETAILS",
-        "ตารางนี้รวมข้อมูลจาก orders.dat และ products.dat ในตารางเดียว โดยเชื่อมด้วย Product ID",
+        "ตารางนี้เชื่อมข้อมูลจาก orders.dat, products.dat และ payments.dat โดยใช้ Product ID และ Order ID",
+        "สินค้าแต่ละรายการใน Order เดียวกันจะแสดงแยกบรรทัด โดยไม่แสดง Order ID และ Customer ซ้ำ",
         "",
-        border(130),
-        "| Order ID | Customer | Products                    | Qty       | Order Total | Date                |",
-        border(130)
+        border(145),
+        "| Order ID | Customer | Product Name             | Qty | Order Total | Payment Method | Payment Date        |",
+        border(145)
     ]
 
     total_sales = 0
     total_items = 0
 
     for r in rows:
-        product_names = []
-        quantities = []
+        payment = payment_map.get(r["id"])
+        items = r["items"]
 
-        for pid, qty in r["items"]:
+        for index, (pid, qty) in enumerate(items):
             product = products_map.get(pid)
+            product_name = product["name"] if product else "Unknown"
+            is_first = index == 0
+            is_last = index == len(items) - 1
 
-            if product is None:
-                product_name = "Unknown"
-            else:
-                product_name = product["name"]
+            order_id_text = str(r["id"]) if is_first else ""
+            customer_text = str(r["customer_id"]) if is_first else ""
+            total_text = f"{r['total']:.2f}" if is_last else ""
+            method_text = payment["method"] if payment and is_last else ""
+            date_text = payment["date"] if payment and is_last else ""
 
-            product_names.append(product_name)
-            quantities.append(str(qty))
+            lines.append(
+                f"| {order_id_text:<8} | {customer_text:<8} | "
+                f"{product_name:<24} | {qty:>3} | {total_text:>11} | "
+                f"{method_text:<14} | {date_text:<19} |"
+            )
             total_items += qty
 
-        products_text = ", ".join(product_names)
-        quantities_text = ", ".join(quantities)
         total_sales += r["total"]
-
-        lines.append(
-            f"| {r['id']:<8} | {r['customer_id']:<8} | "
-            f"{products_text:<27} | {quantities_text:<9} | "
-            f"{r['total']:>11.2f} | {r['date']:<19} |"
-        )
 
     if not rows:
         lines.append(
-            "| No active orders.                                                                                                             |"
+            "| No active orders.                                                                                                                         |"
         )
 
     lines += [
-        border(130),
+        border(145),
         "",
         "REPORT SUMMARY",
         border(80),
@@ -616,22 +616,27 @@ def print_products(products):
     print(border(90))
 
 
-def print_orders(products, orders):
+def print_orders(products, orders, payments=None):
     product_map = {p["id"]: p for p in products.all_active()}
     rows = orders.all_active()
-    print("\n" + border(110))
-    print(f"{'ID':<8}{'Customer':<12}{'Products':<32}{'Total':<14}{'Date':<20}")
+    payment_map = {p["order_id"]: p for p in payments.all_active()} if payments else {}
+    print("\n" + border(135))
+    print(f"{'ID':<8}{'Customer':<12}{'Product Name':<32}{'Qty':<6}{'Total':<14}{'Payment':<12}{'Date':<20}")
     print(border(110))
+
     for r in rows:
-        items = ", ".join(
-            f"{product_map.get(pid, {'name': str(pid)})['name']} x{qty}"
-            for pid, qty in r["items"]
-        )
-        print(f"{r['id']:<8}{r['customer_id']:<12}{items:<32}{r['total']:<14.2f}{r['date']:<20}")
+        for index, (pid, qty) in enumerate(r["items"]):
+            product = product_map.get(pid)
+            product_name = product["name"] if product else str(pid)
+            order_id = str(r["id"]) if index == 0 else ""
+            customer = str(r["customer_id"]) if index == 0 else ""
+            total = f"{r['total']:.2f}" if index == len(r["items"]) - 1 else ""
+            date = r["date"] if index == len(r["items"]) - 1 else ""
+            print(f"{order_id:<8}{customer:<12}{product_name:<32}{qty:<6}{total:<14}{date:<20}")
+
     if not rows:
         print("No orders found.")
     print(border(110))
-
 
 def print_payments(payments):
     rows = payments.all_active()
@@ -729,7 +734,7 @@ def update_product(products):
 
 
 def update_order(products, orders):
-    print_orders(products, orders)
+    print_orders(products, orders, payments)
     rid = read_int("Order ID: ", 1)
     old = orders.get(rid)
     if old is None:
@@ -869,7 +874,7 @@ def view_menu(products, orders, payments):
         if c == "1":
             print_products(products)
         elif c == "2":
-            print_orders(products, orders)
+            print_orders(products, orders, payments)
         elif c == "3":
             print_payments(payments)
         elif c == "0":
@@ -890,7 +895,7 @@ def report_menu(products, orders, payments):
         if c == "1":
             print("Generated:", generate_product_report(products, orders))
         elif c == "2":
-            print("Generated:", generate_order_report(products, orders))
+            print("Generated:", generate_order_report(products, orders, payments))
         elif c == "3":
             print("Generated:", generate_payment_report(payments, orders))
         elif c == "0":
