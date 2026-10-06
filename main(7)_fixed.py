@@ -395,6 +395,8 @@ def generate_product_report(products, orders):
     lines += [
         "REPORT DETAILS",
         "แสดงสินค้าทั้งหมดจาก products.dat และจำนวนที่ขายได้ของสินค้าแต่ละรายการ",
+        "โดยนำจำนวนสินค้าใน orders.dat มารวมตาม Product ID",
+        "",
         border(105),
         "| Product ID | Product Name          | Category       | Price (THB) | Sold Qty | Sales (THB) |",
         border(105)
@@ -628,9 +630,11 @@ def print_orders(products, orders, payments=None):
             product_name = product["name"] if product else str(pid)
             order_id = str(r["id"]) if index == 0 else ""
             customer = str(r["customer_id"]) if index == 0 else ""
-            total = f"{r['total']:.2f}" if index == len(r["items"]) - 1 else ""
-            date = r["date"] if index == len(r["items"]) - 1 else ""
-            print(f"{order_id:<8}{customer:<12}{product_name:<32}{qty:<6}{total:<14}{date:<20}")
+            is_last = index == len(r["items"]) - 1
+            total = f"{r['total']:.2f}" if is_last else ""
+            method = payment_map.get(r["id"], {}).get("method", "") if is_last else ""
+            date = payment_map.get(r["id"], {}).get("date", r["date"]) if is_last else ""
+            print(f"{order_id:<8}{customer:<12}{product_name:<32}{qty:<6}{total:<14}{method:<12}{date:<20}")
 
     if not rows:
         print("No orders found.")
