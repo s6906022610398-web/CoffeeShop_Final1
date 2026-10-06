@@ -395,8 +395,6 @@ def generate_product_report(products, orders):
     lines += [
         "REPORT DETAILS",
         "แสดงสินค้าทั้งหมดจาก products.dat และจำนวนที่ขายได้ของสินค้าแต่ละรายการ",
-        "โดยนำจำนวนสินค้าใน orders.dat มารวมตาม Product ID",
-        "",
         border(105),
         "| Product ID | Product Name          | Category       | Price (THB) | Sold Qty | Sales (THB) |",
         border(105)
